@@ -9,3 +9,4 @@ shopsReviewData
 stanford-postagger-full
 svm_model.pkl
 TextBlob
+.ipynb*
