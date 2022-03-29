@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 from selenium import webdriver
 import pandas as pd
 import numpy as np
+import re
 
 # Sentiment Analysis LIBS
 from textblob import TextBlob
@@ -76,8 +77,20 @@ def get_aspect_reviews(url, datetime=-1):
     return obj
 
 class SentimentAnalysis:
-    #def __init__(self, shopName):
-    #    self.shopName = shopName
+    def remove_emoji(self, string):
+        """
+        Function to remove emoji from the sentences.
+        """
+        emoji_pattern = re.compile("["
+                               u"\U0001F600-\U0001F64F"  # emoticons
+                               u"\U0001F300-\U0001F5FF"  # symbols & pictographs
+                               u"\U0001F680-\U0001F6FF"  # transport & map symbols
+                               u"\U0001F1E0-\U0001F1FF"  # flags (iOS)
+                               u"\U00002702-\U000027B0"
+                               u"\U000024C2-\U0001F251"
+                               "]+", flags=re.UNICODE)
+
+        return emoji_pattern.sub(r'', string)
 
     def get_review_summary(self, reviews):
         """
@@ -130,7 +143,6 @@ class SentimentAnalysis:
         print("Collecting Data...")
         driver = webdriver.Chrome("../ChromeDriver/chromedriver_linux64/chromedriver")
         driver.get(url)
-        #soup = BeautifulSoup(driver.page_source, "html.parser")
 
         totRevButton = driver.find_element_by_class_name("Yr7JMd-pane-hSRGPd")
         total_number_of_reviews = totRevButton.text.split()[0]
@@ -152,7 +164,8 @@ class SentimentAnalysis:
         action.perform()
 
         time.sleep(2)
-
+        
+        # Get scrollable section.
         scrollable_div = driver.find_element_by_xpath('//*[@id="pane"]/div/div[1]/div/div/div[2]')
 
         #Scroll as many times as necessary to load almost all reviews
@@ -164,7 +177,7 @@ class SentimentAnalysis:
                 reviews = response.find_all('div', class_='ODSEW-ShBeI NIyLF-haAclf gm2-body-2')
                 review_time = reviews[-1].find('span',class_='ODSEW-ShBeI-RgZmSc-date').text
 
-                # Get date
+                # Get date in terms of month numbers.
                 a, b, _ = review_time.split(" ")
 
                 if a=="a":
@@ -184,7 +197,7 @@ class SentimentAnalysis:
 
                 time.sleep(1)
 
-        # Clicking More Buttons.
+        # Clicking 'More' Button(s).
         btns = driver.find_elements_by_xpath("//jsl/button")
         for e in btns:
             e.click()
@@ -237,7 +250,7 @@ class SentimentAnalysis:
         for word, token in tagged_sen:
             if token in aspect_tags:
                 target.append(word)
-
+                
         return ", ".join([e for e in target])
 
     def getSentiments(self):
@@ -252,19 +265,19 @@ class SentimentAnalysis:
             a = row["review_clean"].split(". ")
             for e in a:
                 e = e.strip()
+                e = self.remove_emoji(e) # Removing Emoji
+                e = e.strip()
                 if len(e.split(" "))<3:
                     continue
 
                 sentences.append(e)
 
         polarity = []
-        #subjectivity = []
+        #subjectivity = [] Not using subjectivity as of now.
         sens = []
         aspects = []
-        #noAspects = []
         self.outDf = pd.DataFrame()
-        for i, sen in enumerate(sentences):
-            #row = row[1]
+        for i, sen in enumerate(sentences):                
             flag = 0
             sen = sen.lower()
             for e in contrast_words:
@@ -292,7 +305,7 @@ class SentimentAnalysis:
                     tokenizeSen = word_tokenize(each)
                     stopSen = [wrd for wrd in tokenizeSen if not wrd.lower() in stop_words]
 
-                    # Lemmatizing the sentence.
+                    ## Lemmatizing the sentence.
                     lemSen = " ".join([lemma.lemmatize(wrd, "v") for wrd in stopSen])
 
                     asp = self.getAspects(lemSen)
@@ -311,7 +324,7 @@ class SentimentAnalysis:
                 tokenizeSen = word_tokenize(sen)
                 stopSen = [wrd for wrd in tokenizeSen if not wrd.lower() in stop_words]
 
-                # Lemmatizing the sentence.
+                ## Lemmatizing the sentence.
                 lemSen = " ".join([lemma.lemmatize(wrd, "v") for wrd in stopSen])
 
                 asp = self.getAspects(lemSen)
