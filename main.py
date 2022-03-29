@@ -35,6 +35,8 @@ home = r'./stanford-postagger-full'
 
 #To tag using stanford pos tagger
 nltk.download('punkt')
+nltk.download("wordnet")
+nltk.download('omw-1.4')
 
 _path_to_model = home + '/models/english-bidirectional-distsim.tagger'
 _path_to_jar = home + '/stanford-postagger.jar'
