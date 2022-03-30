@@ -1,28 +1,40 @@
-## Scraping Libs
+## Base
+import json
 import time
+import pickle
+import re, os
+import numpy as np
+import pandas as pd
+
+## Scraping
 from bs4 import BeautifulSoup
 from selenium import webdriver
-import pandas as pd
-import numpy as np
-import re
 
-# Sentiment Analysis LIBS
-from textblob import TextBlob
-from nltk.tag.stanford import StanfordPOSTagger as POS_Tag
+# Text Handling
 import nltk
+from textblob import TextBlob
 from nltk import word_tokenize
 from nltk.corpus import stopwords
+from nltk.tag.stanford import StanfordPOSTagger as POS_Tag
 
+#To tag using stanford pos tagger
+nltk.download('punkt')
+nltk.download("wordnet")
+nltk.download('omw-1.4')
+
+## Text Visualization
 import matplotlib.pyplot as plt
 
-lemma = nltk.wordnet.WordNetLemmatizer()
+# Translator.
+from googletrans import Translator
+trans = Translator()
 
+lemma = nltk.wordnet.WordNetLemmatizer()
 stop_words = stopwords.words("english")
 with open("stopwords.txt", "r") as f:
     data = f.read()
     data = data.strip()
     data = data.split("\n")
-
 stop_words.extend(data)
 
 # Removing negation words from stop words.
@@ -32,20 +44,9 @@ for _ in range(2):
             del stop_words[i]
 
 home = r'./stanford-postagger-full'
-
-#To tag using stanford pos tagger
-nltk.download('punkt')
-nltk.download("wordnet")
-nltk.download('omw-1.4')
-
 _path_to_model = home + '/models/english-bidirectional-distsim.tagger'
 _path_to_jar = home + '/stanford-postagger.jar'
-
 stanford_tag = POS_Tag(model_filename=_path_to_model, path_to_jar=_path_to_jar)
-
-# Translator.
-from googletrans import Translator
-trans = Translator()
 
 # Contrast words are included so that sentence with multiple aspects can be segregated.
 contrast_words = ["on the contrary", "yet", "but", "still", "rather", "nor", "conversely", "at the same time",
@@ -53,7 +54,6 @@ contrast_words = ["on the contrary", "yet", "but", "still", "rather", "nor", "co
 "notwithstanding", "in spite of","alternatively", "despite this", "in contrast to", "in contrast with"]
 
 # Loading the SVM model.
-import pickle
 svm = pickle.load(open("svm_model_v3.pkl", "rb"))
 lbl = pickle.load(open("label_encoded_v3.pkl", "rb"))
 print("Loaded model utils...")
@@ -75,7 +75,18 @@ def get_aspect_reviews(url, datetime=-1):
     obj.plot_pie([pos_reviews_dist, neg_reviews_dist], ["Positive", "Negative"])
 
     obj.classify_aspects()
-
+    
+    print("Categorizing reviews...")
+    obj.merge_aspSen()
+    
+    shopName = url.split('/')[5].replace("+", " ") # Get the shopName.
+    
+    if not os.path.isdir("Segment Reviews"):
+        os.mkdir("Segment Reviews")
+    
+    json.dump(obj.catSep, open(f"Segment Reviews/{shopName}.json", "w"))
+    print(f"Saved categorized reviews in {shopName}.json...")
+    
     return obj
 
 class SentimentAnalysis:
@@ -409,3 +420,37 @@ class SentimentAnalysis:
             labels.append(cat)
 
         self.plot_pie(portions, labels)
+
+    
+    def merge_aspSen(self):
+        self.catSep = {}
+        catBool = {}
+
+        for cat in self.aspCat.keys():
+            self.catSep[cat] = []
+            catBool[cat] = 0
+
+        negDf = self.outDf[self.outDf["polarity"]<0]
+
+        for row in negDf.iterrows():
+            row = row[1]
+
+            if type(row["aspects"]) == float:
+                    continue
+
+            aspects = row["aspects"].split(", ")
+
+            for asp in aspects:
+                for cat in self.aspCat.keys():
+                    if catBool[cat]:
+                        continue
+
+                    if asp in self.aspCat[cat]:
+                        self.catSep[cat].append(row["sentence"])
+                        catBool[cat] = 1
+                        break
+
+            # Resetting the category.
+            for k in catBool:
+                catBool[k] = 0
+        
